@@ -14,6 +14,7 @@
 
 const elasticsearch = require('elasticsearch');
 const yesno = require('yesno');
+require( 'console-stamp' )( console );
 
 const ELASTIC_USER = process.env['ELASTIC_USER'];
 const ELASTIC_PASSWORD = process.env['ELASTIC_PASSWORD'];
@@ -65,12 +66,12 @@ const cleanupSettings = (settings) => {
 }
 
 // Back up an index while preserving all mappings and settings (including analyzers)
-const backupIndex = async (sourceIndexName, backupIndexName) => {
+const backupIndex = async ({sourceIndexName, backupIndexName}) => {
+  console.log(`Backing up index ${sourceIndexName} into ${backupIndexName}...`);
   if (await client.indices.exists({index: backupIndexName})) {
-    console.log(`Backup index exists: ${backupIndexName}`);
+    console.warn(`Backup index exists: ${backupIndexName}, not backing up.`);
     return;
   }
-  console.log(`Backing up index ${sourceIndexName} into ${backupIndexName}...`);
   await betterCloneIndex({
     sourceIndexName: sourceIndexName,
     destIndexName: backupIndexName
@@ -79,8 +80,12 @@ const backupIndex = async (sourceIndexName, backupIndexName) => {
 }
 
 // Clone an index while preserving mappings and settings (including analyzers).
-// Provides optional hooks to modify mappings and settings
+// Provides optional hooks to modify mappings and settings.
+// Reindexes content from the source index into the new index.
 const betterCloneIndex = async ({sourceIndexName, destIndexName, injectSettingsFn, injectMappingsFn}) => {
+  console.log(`Cloning and reindexing index ${sourceIndexName} into ${destIndexName}` +
+  (injectSettingsFn ? " with settings modifications" : " without additional settings modifications") +
+  (injectMappingsFn ? " and with mappings modifications" : " and without additional mappings modifications"));
 
   let settings = await client.indices.getSettings({
     index: sourceIndexName
@@ -100,13 +105,27 @@ const betterCloneIndex = async ({sourceIndexName, destIndexName, injectSettingsF
   //console.log(`Mappings: ${JSON.stringify(mappings, null, 2)}`);
 
   if (await client.indices.exists({index: destIndexName})) {
+    console.debug(`Deleting index ${destIndexName}`);
     await client.indices.delete({index: destIndexName});
   }
+  console.debug(`Creating index ${destIndexName}`);
   await client.indices.create({
     index: destIndexName,
     body: {
       settings: settings,
       mappings: mappings
+    }
+  });
+
+  console.debug(`Reindexing index ${sourceIndexName} into ${destIndexName}`);
+  await client.reindex({
+    body: {
+      source: {
+        index: sourceIndexName
+      },
+      dest: {
+        index: destIndexName
+      }
     }
   });
 }
@@ -125,8 +144,9 @@ const checkElasticsearchConnection = async () => {
 const run = async () => {
   try {
     const sourceIndexName = SOURCE_INDEX_NAME;
-    const backupIndexName = `${SOURCE_INDEX_NAME}-BACKUP`;
-    const tempIndexName = `${SOURCE_INDEX_NAME}-TEMP`;
+    const backupIndexName = `${SOURCE_INDEX_NAME}-backup-${Date.now()}`;
+    const tempIndexName = `${SOURCE_INDEX_NAME}-temp`;
+
     console.log('---');
     console.log(`This script will inject new analyzers and mappings into an index. It will:`);
     console.log(`1. Connect to Elasticsearch at ${ELASTICSEARCH_HOST}`);
@@ -144,8 +164,8 @@ const run = async () => {
     await checkElasticsearchConnection();
 
     await backupIndex({
-      sourceIndexName,
-      backupIndexName,
+      sourceIndexName: sourceIndexName,
+      backupIndexName: backupIndexName,
     });
 
     await betterCloneIndex({
@@ -159,22 +179,15 @@ const run = async () => {
       }
     });
 
-    await client.reindex({
-      body: {
-        source: sourceIndexName,
-        dest: tempIndexName,
-      }
-    });
-
     // Swap the indices
     await client.indices.delete({
       index: sourceIndexName,
     });
-    await createIndexFromIndex({
+    await betterCloneIndex({
       sourceIndexName: tempIndexName,
       destIndexName: sourceIndexName,
     });
-
+    console.log("Success!");
   }
   catch(err) {
     console.error(err);

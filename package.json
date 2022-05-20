@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "console-stamp": "^3.0.6",
     "elasticsearch": "^16.7.3",
     "yesno": "^0.3.1"
   }
