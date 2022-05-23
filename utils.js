@@ -5,7 +5,8 @@ const ELASTIC_PASSWORD = process.env['ELASTIC_PASSWORD'];
 const ELASTICSEARCH_HOST = process.env['ELASTICSEARCH_HOST'];
 
 const client = new elasticsearch.Client({
-  hosts: [ `https://${ELASTIC_USER}:${ELASTIC_PASSWORD}@${ELASTICSEARCH_HOST}`]
+  hosts: [ `https://${ELASTIC_USER}:${ELASTIC_PASSWORD}@${ELASTICSEARCH_HOST}`],
+  ssl:{ rejectUnauthorized: false, pfx: [] }
 });
 
 

@@ -1,5 +1,12 @@
-const printUsage = () => {
-  console.log(`
+const utils = require('./utils.js');
+const yesno = require('yesno');
+const { ArgumentParser } = require('argparse');
+require( 'console-stamp' )( console );
+
+const run = async () => {
+  try {
+    const parser = new ArgumentParser({
+      description: `
 Reconfigure an alias to point at a different index.
 
 Usage:
@@ -7,29 +14,20 @@ export ELASTIC_USER=elastic
 export ELASTIC_PASSWORD=REDACTED
 export ELASTICSEARCH_HOST="my-deployment.es.us-central1.gcp.cloud.es.io:9243"
 
-# Args:
-# 1. The name of the alias
-# 2. The name of the existing index in the alias to be removed
-# 3. The name of the new index the alias should point to
-node swap-aliased-index.js "enterprise-search-engine-foo" ".ent-search-engine-documents-foo" ".ent-search-engine-documents-foo-new"
-  `);
-};
+node swap-aliased-index.js \
+  --alias "enterprise-search-engine-foo" \
+  --old-index ".ent-search-engine-documents-foo" \
+  --new-index ".ent-search-engine-documents-foo-new"
+`
+    });
+    parser.add_argument('-a', '--alias', { help: 'Elasticsearch alias to reconfigure, e.g. enterprise-search-engine-foo'});
+    parser.add_argument('-o', '--old-index', { help: 'Elasticsearch index to be removed from the alias, e.g. .ent-search-engine-documents-foo' });
+    parser.add_argument('-n', '--new-index', { help: 'Elasticsearch index to be be added to the alias, e.g. .ent-search-engine-documents-foo-new' });
+    const args = parser.parse_args();
 
-const utils = require('./utils.js');
-const yesno = require('yesno');
-require( 'console-stamp' )( console );
-
-const run = async () => {
-  try {
-    const args = process.argv.slice(2);
-    if (args.length != 3) {
-      printUsage();
-      return;
-    }
-
-    const alias = args[0];
-    const oldIndex = args[1];
-    const newIndex = args[2];
+    const alias = args['alias'];
+    const oldIndex = args['old_index'];
+    const newIndex = args['new_index'];
 
     console.log('---');
     console.log(`This script will reconfigure an alias to point at a different index. It will:`);
