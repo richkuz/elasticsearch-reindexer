@@ -1,7 +1,11 @@
 # elasticsearch-reindexer
 NodeJS tool for adding mappings and analyzers to existing Elasticsearch indices.
 
-I have only tested this with App Search 8.2.0.
+Primarily, these scripts are for changing the analyzers and mappings of App Search Engines.
+
+I have tested this script on 8.2.0 and 8.2.1.
+
+This script will NOT work with App Search < 8.2.0 to modify App Search engines. App Search < 8.2.0 does not support swapping an engine's alias' backing index in this manner.
 
 ## Example Usage
 
@@ -13,7 +17,7 @@ The `inject-intragram-mappings.js` script will inject App Search intragram analz
 npm install
 export ELASTIC_USER="elastic"
 export ELASTIC_PASSWORD="REDACTED"
-export ELASTICSEARCH_HOST="my-elasticsearch-deployment.es.us-central1.gcp.cloud.es.io:9243"
+export ELASTICSEARCH_HOST="https://my-elasticsearch-deployment.es.us-central1.gcp.cloud.es.io:9243"
 
 node inject-intragram-mappings.js \
   --source-index ".ent-search-engine-documents-foo" \  # For App Search, specify the dot-prefixed index name, NOT alias name
@@ -47,7 +51,7 @@ The `swap-aliased-index.js` script will reconfigure an alias to point at a diffe
 npm install
 export ELASTIC_USER="elastic"
 export ELASTIC_PASSWORD="REDACTED"
-export ELASTICSEARCH_HOST="my-elasticsearch-deployment.es.us-central1.gcp.cloud.es.io:9243"
+export ELASTICSEARCH_HOST="https://my-elasticsearch-deployment.es.us-central1.gcp.cloud.es.io:9243"
 
 node swap-aliased-index.js \
    --alias "enterprise-search-engine-foo" \
@@ -68,4 +72,39 @@ Are you sure you want to continue? (y/n) y
 [23.05.2022 10:48.53.352] [LOG]   Connected to Elasticsearch at my-elasticsearch-deployment.es.us-central1.gcp.cloud.es.io:9243
 [23.05.2022 10:48.53.353] [LOG]   Reconfiguring alias enterprise-search-engine-foo
 [23.05.2022 10:48.54.029] [LOG]   Success!
+```
+
+### Combined example for App Search
+
+This example combines both scripts together to update an Enterprise Search engine in-place.
+
+It puts Enterprise Search into read-only mode during the operation.
+
+```sh
+export ELASTIC_USER=elastic
+export ELASTIC_PASSWORD=REDACTED
+export ELASTICSEARCH_HOST=https://my-deployment.es.us-central1.gcp.cloud.es.io:9243
+export ENTERPRISE_SEARCH_BASE_URL=https://my-deployment.ent.us-central1.gcp.cloud.es.io
+export ENGINE_NAME=national-parks-demo
+export FIELDS=title,description
+
+curl -X PUT "${ENTERPRISE_SEARCH_BASE_URL}/api/ent/v1/internal/read_only_mode" \
+  -H "Content-Type: application/json" \
+  -u ${ELASTIC_USER}:${ELASTIC_PASSWORD} \
+  -d '{ "enabled": true }'
+
+node inject-intragram-mappings.js \
+  --source-index ".ent-search-engine-documents-${ENGINE_NAME}" \
+  --dest-index ".ent-search-engine-documents-${ENGINE_NAME}-new" \
+  --fields ${FIELDS}
+
+node swap-aliased-index.js \
+  --alias "enterprise-search-engine-${ENGINE_NAME}" \
+  --old-index ".ent-search-engine-documents-${ENGINE_NAME}" \
+  --new-index ".ent-search-engine-documents-${ENGINE_NAME}-new"
+
+curl -X PUT "${ENTERPRISE_SEARCH_BASE_URL}/api/ent/v1/internal/read_only_mode" \
+  -H "Content-Type: application/json" \
+  -u ${ELASTIC_USER}:${ELASTIC_PASSWORD} \
+  -d '{ "enabled": false }'
 ```

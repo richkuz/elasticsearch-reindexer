@@ -4,11 +4,29 @@ const ELASTIC_USER = process.env['ELASTIC_USER'];
 const ELASTIC_PASSWORD = process.env['ELASTIC_PASSWORD'];
 const ELASTICSEARCH_HOST = process.env['ELASTICSEARCH_HOST'];
 
+const buildElasticsearchUrl = ({ esUser, esPassword, esUrl}) => {
+  let esProtocol = 'https://';
+  let esHost = esUrl;
+  if (esUrl.startsWith('https://')) {
+    esHost = esUrl.substring(8);
+  }
+  else if (esUrl.startsWith('http://')) {
+    esProtocol = 'http://';
+    esHost = esUrl.substring(7);
+  }
+  return `${esProtocol}${esUser}:${esPassword}@${esHost}`;
+}
+
 const client = new elasticsearch.Client({
-  hosts: [ `https://${ELASTIC_USER}:${ELASTIC_PASSWORD}@${ELASTICSEARCH_HOST}`],
+  hosts: [
+    buildElasticsearchUrl({
+      esUser: ELASTIC_USER,
+      esPassword: ELASTIC_PASSWORD,
+      esUrl: ELASTICSEARCH_HOST
+    })
+  ],
   ssl:{ rejectUnauthorized: false, pfx: [] }
 });
-
 
 // Remove read-only settings so the same settings map can be used to create a new index
 const cleanupSettings = (settings) => {
@@ -51,6 +69,10 @@ const betterCloneIndex = async ({sourceIndexName, destIndexName, injectSettingsF
   mappings = mappings[sourceIndexName].mappings;
 
   cleanupSettings(settings);
+  // Enable writes, in case the original index has writes disabled.
+  settings.index.blocks = {
+    "write": false
+  }
   injectSettingsFn && injectSettingsFn(settings);
   injectMappingsFn && injectMappingsFn(mappings);
 
