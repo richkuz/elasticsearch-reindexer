@@ -7,6 +7,8 @@ I have tested this script on 8.2.0 and 8.2.1.
 
 This script will NOT work with App Search < 8.2.0 to modify App Search engines. App Search < 8.2.0 does not support swapping an engine's alias' backing index in this manner.
 
+If you are reindexing a large index, the script may timeout. I recommended indexing one document first and running the script to avoid the timeout, then reindexing the rest of the content later.
+
 ## Example Usage
 
 ### inject-intragram-mappings.js
